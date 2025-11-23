@@ -1,5 +1,6 @@
 import streamlit as st
-from langchain_community.document_loaders import WebBaseLoader
+import requests
+from bs4 import BeautifulSoup
 from chains import Chain
 from portfolio import Portfolio
 from utils import clean_text
@@ -12,7 +13,6 @@ def create_streamlit_app(llm, portfolio, clean_text):
         layout="wide"
     )
     
-    # Custom CSS
     st.markdown("""
         <style>
         .main {
@@ -32,13 +32,11 @@ def create_streamlit_app(llm, portfolio, clean_text):
         </style>
     """, unsafe_allow_html=True)
     
-    # Header
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("📧 Cold Email Generator")
         st.markdown("### Generate personalized cold emails for job postings using AI")
     
-    # API Key input
     api_key = st.text_input(
         "Enter your Groq API Key",
         type="password",
@@ -48,7 +46,6 @@ def create_streamlit_app(llm, portfolio, clean_text):
     if api_key:
         os.environ["GROQ_API_KEY"] = api_key
     
-    # URL input
     url_input = st.text_input(
         "Enter Company Career Page URL:",
         placeholder="https://company.com/careers",
@@ -68,14 +65,12 @@ def create_streamlit_app(llm, portfolio, clean_text):
         
         try:
             with st.spinner("🔍 Extracting job information..."):
-                # Load and clean webpage content
-                loader = WebBaseLoader([url_input])
-                data = clean_text(loader.load().pop().page_content)
+                response = requests.get(url_input, timeout=10)
+                soup = BeautifulSoup(response.content, 'html.parser')
+                page_data = soup.get_text()
+                data = clean_text(page_data)
                 
-                # Load portfolio
                 portfolio.load_portfolio()
-                
-                # Extract jobs using LLM
                 jobs = llm.extract_jobs(data)
                 
                 if not jobs:
@@ -84,19 +79,15 @@ def create_streamlit_app(llm, portfolio, clean_text):
                 
                 st.success(f"✅ Found {len(jobs)} job posting(s)!")
             
-            # Display jobs and generated emails
             for idx, job in enumerate(jobs):
                 with st.container():
                     st.markdown("---")
-                    
-                    # Job details
                     col1, col2 = st.columns([2, 1])
                     
                     with col1:
                         st.markdown(f"### 💼 {job.get('role', 'N/A')}")
                         st.markdown(f"**Experience Required:** {job.get('experience', 'N/A')}")
                         
-                        # Skills
                         if job.get('skills'):
                             st.markdown("**Required Skills:**")
                             skills_html = " ".join([
@@ -106,26 +97,21 @@ def create_streamlit_app(llm, portfolio, clean_text):
                             ])
                             st.markdown(skills_html, unsafe_allow_html=True)
                         
-                        # Description
                         st.markdown(f"**Description:**")
                         st.write(job.get('description', 'N/A'))
                     
                     with col2:
                         st.info(f"📊 Job #{idx + 1}")
                     
-                    # Query portfolio for matching projects
                     skills = job.get('skills', [])
                     links = portfolio.query_links(skills)
                     
-                    # Generate email
                     with st.spinner("✍️ Generating personalized email..."):
                         email = llm.write_mail(job, links)
                     
-                    # Display email
                     st.markdown("### 📧 Generated Cold Email")
                     st.code(email, language=None)
                     
-                    # Copy button
                     st.download_button(
                         label="📋 Download Email",
                         data=email,
@@ -134,7 +120,6 @@ def create_streamlit_app(llm, portfolio, clean_text):
                         key=f"download_{idx}"
                     )
                     
-                    # Show matched portfolio links
                     if links:
                         with st.expander("🔗 Matched Portfolio Projects"):
                             for link in links:
