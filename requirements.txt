@@ -1,0 +1,9 @@
+streamlit==1.31.0
+langchain==0.1.10
+langchain-groq==0.0.1
+langchain-community==0.0.24
+langchain-core==0.1.23
+chromadb==0.4.22
+pandas==2.2.0
+beautifulsoup4==4.12.3
+lxml==5.1.0
